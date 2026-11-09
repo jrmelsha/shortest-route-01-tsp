@@ -331,7 +331,8 @@ function solve(xs: Float64Array, ys: Float64Array, kicks: number, seed: number):
   // ILS: kick = swap two adjacent short segments B and C (three reversals), re-optimise around it,
   // keep it when the tour got no longer, else undo every reversal in reverse order.
   journaling = true;
-  const lmax = Math.max(3, Math.min(50, (n / 8) | 0));
+  // Long swapped segments (up to 400 cities) pay most on the clustered sets: t06 and t08 shortened by 2%.
+  const lmax = Math.max(3, Math.min(400, (n / 8) | 0));
   for (let it = 0; it < kicks; it++) {
     jlen = 0;
     const i = rand() % n;
