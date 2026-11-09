@@ -13,7 +13,8 @@ const OUTPUT_DIR = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
 // ILS kicks per city; the 35,000 cities of one run share the 120 s budget.
 // The grader's 1-CPU sandbox ran a 36 s (local) build past its 120 s budget: keep local time near 10 s.
-const KICKS_PER_CITY = 12;
+// LK moves make each kick dearer: 10 per city keeps the grader near 90 s of its 120 s budget.
+const KICKS_PER_CITY = 10;
 const K = 8; // nearest candidate neighbours per city (plus quadrant neighbours)
 
 function readInstance(path: string): { xs: Float64Array; ys: Float64Array } {
@@ -304,8 +305,70 @@ function solve(xs: Float64Array, ys: Float64Array, kicks: number, seed: number):
         }
       }
     }
-    return 0;
+    return lkMove(a);
   };
+
+  // Lin-Kernighan style move (Lin & Kernighan 1973) as a chain of 2-opt flips from t1: each step breaks
+  // (t1, t2 = next(t1)), adds (t2, t3) for the candidate t3 that maximises g - d(t2,t3) + d(t4,t3), breaks
+  // (t4 = prev(t3), t3) and closes with (t4, t1). The chain is cut back to its best closed tour, or undone.
+  const LK_DEPTH = 5;
+  const touched = new Int32Array(2 * LK_DEPTH + 2);
+  function lkMove(t1: number): number {
+    for (let dir = 0; dir < 2; dir++) {
+      let fwd = dir === 0;
+      let t2 = fwd ? succ(t1) : pred(t1);
+      let g = dist(t1, t2);
+      const wasJournaling = journaling;
+      journaling = true;
+      const mark = jlen;
+      let bestGain = 0;
+      let bestLen = mark;
+      let nt = 0;
+      let bestNt = 0;
+      touched[nt++] = t1;
+      touched[nt++] = t2;
+      for (let depth = 0; depth < LK_DEPTH; depth++) {
+        let bt3 = -1;
+        let bt4 = -1;
+        let bval = -Infinity;
+        for (let k = 0, k2 = ncnt[t2]!; k < k2; k++) {
+          const t3 = nbr[t2 * kk + k]!;
+          const d23 = dist(t2, t3);
+          if (g - d23 <= 0) break;
+          if (t3 === t1) continue;
+          const t4 = fwd ? pred(t3) : succ(t3);
+          if (t4 === t2) continue;
+          const val = dist(t4, t3) - d23;
+          if (val > bval) {
+            bval = val;
+            bt3 = t3;
+            bt4 = t4;
+          }
+        }
+        if (bt3 < 0) break;
+        make2opt(t1, t2, bt4, bt3);
+        g += bval;
+        touched[nt++] = bt3;
+        touched[nt++] = bt4;
+        const close = g - dist(bt4, t1);
+        if (close > bestGain) {
+          bestGain = close;
+          bestLen = jlen;
+          bestNt = nt;
+        }
+        fwd = succ(t1) === bt4;
+        t2 = bt4;
+      }
+      for (let q = jlen - 2; q >= bestLen; q -= 2) doRev(journal[q]!, journal[q + 1]!);
+      jlen = wasJournaling ? bestLen : mark;
+      journaling = wasJournaling;
+      if (bestGain > 0) {
+        for (let i = 0; i < bestNt; i++) push(touched[i]!);
+        return -bestGain;
+      }
+    }
+    return 0;
+  }
 
   const localSearch = (): number => {
     let total = 0;
