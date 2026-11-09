@@ -12,7 +12,8 @@ const INPUT_DIR = process.env.MAKEFUN_INPUT_DIR ?? '/input';
 const OUTPUT_DIR = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
 // ILS kicks per city; the 35,000 cities of one run share the 120 s budget.
-const KICKS_PER_CITY = 50;
+// The grader's 1-CPU sandbox ran a 36 s (local) build past its 120 s budget: keep local time near 10 s.
+const KICKS_PER_CITY = 12;
 const K = 8; // nearest candidate neighbours per city (plus quadrant neighbours)
 
 function readInstance(path: string): { xs: Float64Array; ys: Float64Array } {
@@ -395,7 +396,7 @@ for (const name of names) {
   const { xs, ys } = readInstance(join(INPUT_DIR, name));
   const n = xs.length;
   // small instances are cheap per kick: give them a floor of kicks
-  const tour = solve(xs, ys, Math.max(KICKS_PER_CITY * n, 150_000), 0x2545f491 ^ n);
+  const tour = solve(xs, ys, Math.max(KICKS_PER_CITY * n, 40_000), 0x2545f491 ^ n);
   if (process.env.MAKEFUN_DEBUG) process.stderr.write(`${name} n=${n} len=${tourLength(xs, ys, tour)}\n`);
   writeFileSync(join(OUTPUT_DIR, name.replace(/\.txt$/, '.tour')), `${Array.from(tour).join('\n')}\n`);
 }
